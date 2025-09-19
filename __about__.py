@@ -1,0 +1,5 @@
+name = "PySBK"
+version = "0.0.1"
+author = "enveezee"
+license = "MIT"
+homepage = "https://github.com/enveezee/pysbk"

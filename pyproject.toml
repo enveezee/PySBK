@@ -1,0 +1,32 @@
+[project]
+name = "PySBK"
+version = "0.0.1"
+description = "Python Selenium Browser Kit, a simplified Selenium Wrapper."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT" # Or a more specific SPDX expression like "GPL-3.0-or-later"
+authors = [
+    { name = "enveezee", email = "enveezee@gmail.com" },
+]
+maintainers = [
+    { name = "enveezee", email = "enveezee@gmail.com" },
+]
+keywords = ["python", "selenium", "webdriver"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 3 - Alpha",
+]
+dependencies = [
+    "selenium>=4.35.0",
+    "webdriver-manager>=4.0.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/enveezee/PySBK"
+Documentation = "https://github.com/enveezee/PySBK"
+Repository = "https://github.com/enveezee/PySBK"
+Issues = "https://github.com/enveezee/PySBK/issues"
+
+

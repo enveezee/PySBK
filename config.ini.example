@@ -1,0 +1,8 @@
+[defaults]
+browser = brave
+headless = false
+clone = true
+profile = default
+log_to_file = true
+log_file = pysbk.log
+log_level = INFO
