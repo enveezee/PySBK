@@ -35,44 +35,6 @@ class SeleniumBrowser:
         self.browsers = {}  # registry of all detected browsers
         self.detect_browsers()
 
-    def detect_browsers(self):
-        candidates = {
-            "brave": ["brave-browser", "brave"],
-            "chrome": ["google-chrome", "chrome"],
-            "chromium": ["chromium-browser", "chromium"],
-            "edge": ["microsoft-edge", "edge"],
-            "firefox": ["firefox", "firefox-esr"]
-        }
-
-        for name, binaries in candidates.items():
-            for binary in binaries:
-                path = shutil.which(binary)
-                if path:
-                    version = self.get_browser_version(path)
-                    profile_path, user_data_dir = runtime.resolve_profile(name)
-                    options = self.build_options(name, path, profile_path, user_data_dir)
-                    service = self.build_service(name)
-                    self.browsers[name] = {
-                        "name": name,
-                        "binary": path,
-                        "version": version,
-                        "profile_path": profile_path,
-                        "user_data_dir": user_data_dir,
-                        "options": options,
-                        "service": service,
-                        "driver": None,
-                        "process": None,
-                        "status": "idle"
-                    }
-                    break  # stop after first valid binary
-
-    def get_browser_version(self, binary):
-        try:
-            result = subprocess.run([binary, "--version"], capture_output=True, text=True)
-            return result.stdout.strip()
-        except Exception:
-            return "unknown"
-
     def build_options(self, name, binary, profile_path, user_data_dir):
         if name in ["brave", "chrome", "chromium"]:
             options = webdriver.ChromeOptions()
@@ -115,6 +77,82 @@ class SeleniumBrowser:
             print(f"[SeleniumBrowser] Failed to build service for {name}: {e}")
             return None
 
+    def detect_browsers(self):
+        candidates = {
+            "brave": ["brave-browser", "brave"],
+            "chrome": ["google-chrome", "chrome"],
+            "chromium": ["chromium-browser", "chromium"],
+            "edge": ["microsoft-edge", "edge"],
+            "firefox": ["firefox", "firefox-esr"]
+        }
+
+        for name, binaries in candidates.items():
+            for binary in binaries:
+                path = shutil.which(binary)
+                if path:
+                    version = self.get_browser_version(path)
+                    profile_path, user_data_dir = runtime.resolve_profile(name)
+                    options = self.build_options(name, path, profile_path, user_data_dir)
+                    service = self.build_service(name)
+                    self.browsers[name] = {
+                        "name": name,
+                        "binary": path,
+                        "version": version,
+                        "profile_path": profile_path,
+                        "user_data_dir": user_data_dir,
+                        "options": options,
+                        "service": service,
+                        "driver": None,
+                        "process": None,
+                        "status": "idle"
+                    }
+                    break  # stop after first valid binary
+
+    def get_browser_version(self, binary):
+        try:
+            result = subprocess.run([binary, "--version"], capture_output=True, text=True)
+            return result.stdout.strip()
+        except Exception:
+            return "unknown"
+
+    def get_console_logs(self, namespace="_SeleniumBrowser"):
+        try:
+            logs = self.driver.get_log("browser")
+            return [entry for entry in logs if namespace in entry["message"]]
+        except Exception as e:
+            self.log.error(f"Console log retrieval failed: {e}")
+            return []
+
+    def inject_dom_agent(self):
+        agent_code = """
+        window._PySBK = window._PySBK || {};
+        window._PySBK.dom = {
+            log: function(msg) {
+                console.log("[_PySBK] " + msg);
+            },
+            getAllInputs: function() {
+                return Array.from(document.querySelectorAll("input")).map(i => i.name || i.id);
+            }
+        };
+        """
+        self.inject_script(agent_code)
+
+    def inject_script(self, js_code):
+        try:
+            self.driver.execute_script(js_code)
+            self.log.debug("Injected custom JS")
+        except Exception as e:
+            self.log.error(f"JS injection failed: {e}")
+            
+    def inject_tracker(self):
+        try:
+            with open("assets/tracker.js", "r") as f:
+                js_code = f.read()
+            self.inject_script(js_code)
+            self.log.debug("Injected PySBK tracker")
+        except Exception as e:
+            self.log.error(f"Tracker injection failed: {e}")
+
     def launch_browser(self, name, mode="selenium"):
         if name not in self.browsers:
             print(f"[SeleniumBrowser] Browser '{name}' not available.")
@@ -149,6 +187,14 @@ class SeleniumBrowser:
             browser["status"] = "error"
             self.last_error = e
 
+    def resume_selenium(self, name):
+        self.stop_browser(name)
+        self.launch_browser(name, mode="selenium")
+
+    def run_manual_auth(self, name):
+        self.stop_browser(name)
+        self.launch_browser(name, mode="subprocess")
+
     def stop_browser(self, name):
         if name not in self.browsers:
             return
@@ -160,11 +206,3 @@ class SeleniumBrowser:
         browser["status"] = "idle"
         browser["driver"] = None
         browser["process"] = None
-
-    def run_manual_auth(self, name):
-        self.stop_browser(name)
-        self.launch_browser(name, mode="subprocess")
-
-    def resume_selenium(self, name):
-        self.stop_browser(name)
-        self.launch_browser(name, mode="selenium")

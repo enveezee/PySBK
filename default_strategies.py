@@ -1,3 +1,5 @@
+import re, random
+
 default_strategies = {
     "find_strategies": {
         "all": lambda els: els,
