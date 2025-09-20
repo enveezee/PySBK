@@ -1,3 +1,5 @@
+## WIP, until the 1.0 release coming very soon now, this readme and its examples especially are subject to change and inaccuracy.
+
 # PySBK
 
 **PySBK** is a symbolic browser automation runtime built on top of Selenium, designed for cognitive clarity, modular extensibility, and survival-grade control. It abstracts away procedural mess and exposes a declarative interface for building resilient, intention-driven agents.
