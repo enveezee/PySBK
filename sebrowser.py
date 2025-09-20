@@ -12,17 +12,26 @@ try:
 except Exception as e:
     print(f'[SeleniumBrowser] Import error: {e}')
 
-import PySBK.platform as platform
+import runtime
 
 class SeleniumBrowser:
-    def __init__(self, headless=False, profile=None, clone=True):
-        self.log = platform.setup_logger()
+    def __init__(self, **kwargs):
+        self.log = runtime.setup_logger()
         self.log.info("Initializing SeleniumBrowser")
         config = load_config()
-        self.browser = kwargs.get("browser", config.get("browser", "chromium"))
-        self.clone = kwargs.get("clone", config.get("clone", "true") == "true")
-        self.headless = kwargs.get("headless", config.get("headless", "false") == "true")
-        self.profile = kwargs.get("profile", config.get("profile", None))
+        PARAMS = {
+            "browser": "chromium",
+            "clone": "true",
+            "headless": "false",
+            "profile": None,
+            "URL": None,
+        }
+        for key, default in PARAMS.items():
+            raw_value = kwargs.get(key, config.get(key, default))
+            if isinstance(default, str) and default in ("true", "false"):
+                resolved = raw_value == "true"
+            else:
+                resolved = raw_value
         self.browsers = {}  # registry of all detected browsers
         self.detect_browsers()
 
@@ -40,7 +49,7 @@ class SeleniumBrowser:
                 path = shutil.which(binary)
                 if path:
                     version = self.get_browser_version(path)
-                    profile_path, user_data_dir = platform.resolve_profile(name)
+                    profile_path, user_data_dir = runtime.resolve_profile(name)
                     options = self.build_options(name, path, profile_path, user_data_dir)
                     service = self.build_service(name)
                     self.browsers[name] = {

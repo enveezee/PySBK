@@ -1,25 +1,38 @@
+import random, re
+
+from sebrowser import SeleniumBrowser
+
 class PySBK(SeleniumBrowser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.log.debug("Initializing PySBK")
 
-    def find(self, by, match, which="only"):
+    def find(self, by, match, which="all"):
         try:
-            if which == "only":
+            if by in [By.ID, By.Name]:
                 return self.driver.find_element(by, match)
-            elements = self.driver.find_elements(by, match)
-            if not elements:
-                raise Exception("No elements found")
-            if which == "first":
-                return elements[0]
-            elif which == "last":
-                return elements[-1]
-            elif isinstance(which, int):
-                return elements[which]
-            elif which == "only" and len(elements) == 1:
-                return elements[0]
             else:
-                raise Exception("Ambiguous match")
+                elements = self.driver.find_elements(by, match)
+                if not elements:
+                    raise Exception("No elements found")
+                if isinstance(which, int):
+                    return elements[which]
+                if isinstance(which, str):
+                    WHICH = {
+                        "all": lambda els: els,
+                        "first": lambda els: els[0],
+                        "second": lambda els: els[1] if len(els) > 1 else None,
+                        "middle": lambda els: els[round(len(els)/2)] if els else None,
+                        "last": lambda els: els[-1],
+                        "random": lambda els: random.choice(els) if els else None,
+                    }
+                    key = which.lower()
+                    if key in WHICH:
+                        return WHICH[key](elements)
+                    else:
+                        raise ValueError(f"Invalid 'which': {which}")
+                else:
+                    return elements
         except Exception as e:
             self.last_error = e
             return None
@@ -103,11 +116,11 @@ class PySBK(SeleniumBrowser):
         el = self.find(by, match, which)
         return el.get_attribute(attr) if el else None
 
-    def type(self, by, match, text, clear_first=True, which="only"):
+    def type(self, by, match, text, term="", clear=True, which="only"):
         el = self.find(by, match, which)
         if el:
-            if clear_first: el.clear()
-            el.send_keys(text)
+            if clear: el.clear()
+            el.send_keys(text+term)
 
     def go(self, url, reinject=True, track_redirects=True, timeout=10):
         self.driver.get(url)

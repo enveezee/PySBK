@@ -1,57 +1,71 @@
+import os
 import configparser
 import logging
-from pathlib import Path
 import platform
+#import json
+import importlib.util
+from pathlib import Path
 
 system = platform.system()
 home = Path.home()
 
-def get_user_data_dir(app_name: str) -> Path:
-    if system == 'Windows':
-        # Conventionally uses %LOCALAPPDATA%
-        return home / 'AppData' / 'Local' / app_name
-    elif system == 'Darwin':
-        # Conventionally uses ~/Library/Application Support
-        return home / 'Library' / 'Application Support' / app_name
-    elif system == 'Linux':
-        # Adheres to the XDG Base Directory Specification
-        xdg_data_home = Path(os.environ.get('XDG_DATA_HOME', home / '.local' / 'share'))
-        return xdg_data_home / app_name
+# Platform-aware directory resolution
+def get_platform_dir(app_name: str, kind: str = "config") -> Path:
+    if system == "Windows":
+        base = home / "AppData" / ("Roaming" if kind == "config" else "Local")
+    elif system == "Darwin":
+        base = home / "Library" / "Application Support"
+    elif system == "Linux":
+        env_var = "XDG_CONFIG_HOME" if kind == "config" else "XDG_DATA_HOME"
+        fallback = home / (".config" if kind == "config" else ".local/share")
+        base = Path(os.environ.get(env_var, fallback))
     else:
-        # Fallback for unsupported systems
-        return home / f'.{app_name}'
+        base = home / f".{app_name}"
+    return base / app_name
 
-def get_user_config_dir(app_name: str) -> Path:
-    if system == 'Windows':
-        # Conventionally uses %APPDATA% (Roaming) or %LOCALAPPDATA%
-        return home / 'AppData' / 'Roaming' / app_name
-    elif system == 'Darwin':
-        # Same convention as user data, ~/Library/Application Support
-        return home / 'Library' / 'Application Support' / app_name
-    elif system == 'Linux':
-        # Adheres to the XDG Base Directory Specification
-        xdg_config_home = Path(os.environ.get('XDG_CONFIG_HOME', home / '.config'))
-        return xdg_config_home / app_name
-    else:
-        # Fallback for unsupported systems
-        return home / f'.{app_name}'
-    
-def load_config(app_name="PySBK"):
-    config_path = Path.home() / ".config" / app_name.lower() / "config.ini"
+#   User config loader
+def load_user_config(app_name="PySBK") -> dict:
+    config_path = get_platform_dir(app_name, "config") / "config.ini"
     config = configparser.ConfigParser()
     config.read(config_path)
     return config["defaults"] if "defaults" in config else {}
 
-def resolve_profile(self, name):
-    home = os.path.expanduser("~")
+#   Profile resolution
+def resolve_profile(name: str) -> tuple[str, str]:
+    base = home / ".config"
     if name == "firefox":
-        return (home + "/.mozilla/firefox/xyz.default", home + "/.mozilla")
+        return (str(home / ".mozilla/firefox/xyz.default"), str(home / ".mozilla"))
     elif name in ["chrome", "brave", "chromium"]:
-        return (home + "/.config/" + name.capitalize(), home + "/.config")
+        return (str(base / name.capitalize()), str(base))
     elif name == "edge":
-        return (home + "/.config/microsoft-edge", home + "/.config")
+        return (str(base / "microsoft-edge"), str(base))
     return ("", "")
 
+#   Strategy loader
+def load_strategies(app_name="PySBK") -> dict:
+    paths = [
+        Path.cwd() / "strategies",  # project-local
+        get_platform_dir(app_name, "config") / "strategies",  # user config
+        Path(__file__).parent / "default_strategies.py"  # fallback
+    ]
+
+    strategies = {}
+    for path in paths:
+        if path.is_dir():
+            for file in path.glob("*.py"):
+                mod_name = file.stem
+                spec = importlib.util.spec_from_file_location(mod_name, file)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                strategies.update(getattr(mod, "default_strategies", {}))
+        elif path.is_file() and path.suffix == ".py":
+            spec = importlib.util.spec_from_file_location("default_strategies", path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            strategies.update(getattr(mod, "default_strategies", {}))
+    return strategies
+
+#   Logger setup
 def setup_logger(name="PySBK", log_to_file=False, log_file="pysbk.log", level=logging.INFO):
     logger = logging.getLogger(name)
     logger.setLevel(level)
